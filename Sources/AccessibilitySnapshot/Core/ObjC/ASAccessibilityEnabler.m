@@ -34,19 +34,23 @@
 {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        void *handle = [self loadDylib:@"/usr/lib/libAccessibility.dylib"];
-        if (!handle) {
-            [NSException raise:NSGenericException format:@"Could not enable accessibility"];
+        NSDictionary *environment = [[NSProcessInfo processInfo] environment];
+        NSString *previews = [environment objectForKey:@"XCODE_RUNNING_FOR_PREVIEWS"];
+        if ([previews isEqual:[NSNull null]]) {
+            void *handle = [self loadDylib:@"/usr/lib/libAccessibility.dylib"];
+            if (!handle) {
+                [NSException raise:NSGenericException format:@"Could not enable accessibility"];
+            }
+            
+            int (*_AXSAutomationEnabled)(void) = dlsym(handle, "_AXSAutomationEnabled");
+            void (*_AXSSetAutomationEnabled)(int) = dlsym(handle, "_AXSSetAutomationEnabled");
+            
+            int initialValue = _AXSAutomationEnabled();
+            _AXSSetAutomationEnabled(YES);
+            atexit_b(^{
+                _AXSSetAutomationEnabled(initialValue);
+            });
         }
-
-        int (*_AXSAutomationEnabled)(void) = dlsym(handle, "_AXSAutomationEnabled");
-        void (*_AXSSetAutomationEnabled)(int) = dlsym(handle, "_AXSSetAutomationEnabled");
-
-        int initialValue = _AXSAutomationEnabled();
-        _AXSSetAutomationEnabled(YES);
-        atexit_b(^{
-            _AXSSetAutomationEnabled(initialValue);
-        });
     });
 }
 
